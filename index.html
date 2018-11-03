@@ -130,18 +130,29 @@
 		}
 	</style>
 	<script src="https://code.jquery.com/jquery-latest.js" charset="utf-8"></script>
-	
+	<!--baidu map javascript api-->
 	<script type="text/javascript" src="https://api.map.baidu.com/api?v=3.0&ak=LWF4zlldITmbgCUMOs1A39R9w2m7Uoyz"></script>
 	<script type="text/javascript" src="https://api.map.baidu.com/library/SearchInfoWindow/1.5/src/SearchInfoWindow_min.js"></script>	
-
+	<!--amap javascript api-->
 	<script src="https://webapi.amap.com/maps?v=1.4.4&key=c0bed0bfaa59c175f8295471691a76cc&plugin=AMap.Autocomplete,AMap.PlaceSearch,AMap.AdvancedInfoWindow,AMap.CitySearch,AMap.ControlBar"></script>
 	<script src="https://webapi.amap.com/ui/1.0/main.js?v=1.0.11"></script>
  	<script src="https://cache.amap.com/lbs/static/es5.min.js"></script>
- 	
+ 	<!--bing map javascript api-->
 	<script type='text/javascript' src='https://www.bing.com/api/maps/mapcontrol?callback=GetMap&setLang=en&key=AhkgsWH-oZMhs7IGU-e2-dXChk6Qrda-r2d19wH13C8RZjtempyQSce3hsY4rtuU' async defer></script>
-	<script src="http://maps.google.cn/maps/api/js?&key=AIzaSyBzE9xAESye6Kde-3hT-6B90nfwUkcS8Yw&libraries=places" async defer></script>
+	<!--google map(cn version) javascript api
+		key1 AIzaSyAROOUSFrizU2GIIwOP_pQxkV36yrwqHls
+		key2 AIzaSyBzE9xAESye6Kde-3hT-6B90nfwUkcS8Yw
+		-----20180909
+		key3 AIzaSyBCh7YdmJpF1llA3yRMAi7OzP82bAmVRBU
+	-->
 	
-	<title>Maps Test</title>
+	<!--
+	<script src="http://ditu.google.cn/maps/api/js?sensor=false&libraries=places"></script>
+	<script src="http://www.google.cn/maps/api/js?&libraries=places" async defer></script>
+	<script src="http://maps.google.cn/maps/api/js?&key=AIzaSyBCh7YdmJpF1llA3yRMAi7OzP82bAmVRBU&libraries=places" async defer></script>
+	-->
+	<script src="http://ditu.google.cn/maps/api/js?libraries=places&key=AIzaSyDv6EcbR-XrHCaFBYLUJLFr_9ObYubnAAI"></script>
+	<title>MaxMap Test</title>
 </head>
 <body onload='init("gmap")'>
 <div id="map"></div>
@@ -161,7 +172,8 @@
 	<input type='text' id='searchBox' placeholder="Search Box"/>
 </div>
 <script type="text/javascript">
-	var lon=116.3976383209224,lat=39.915266614934566,ele=0;
+	var ilon=116.3976383209224,ilat=39.915266614934566,iele=0;
+	var zoomlevel = 12;
 	var map,autoprediction;
 	var isdown=false;
 	var searchbox_id = "searchBox";
@@ -177,25 +189,89 @@
 	        init(chte.getAttribute("value"));
 	    })
 	}
-	/*
+    // Try HTML5 geolocation.
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function(position) {
+      	ilat = position.coords.latitude;
+      	ilon = position.coords.longitude;
+      }, function() {
+        handleLocationError(true);
+      });
+    } else {
+      // Browser doesn't support Geolocation
+      handleLocationError(false);
+    }
+	//***************************************************
+  	function handleLocationError(browserHasGeolocation) {
+    	alert(browserHasGeolocation ?
+                          'Error: The Geolocation service failed.' :
+                          'Error: Your browser doesn\'t support geolocation.');
+  	}
+  	// ip location
 	$.get("https://ipinfo.io/json", function (response) {
 		var latlon=response.loc.split(/,/);
-		lat=latlon[0];
-		lon=latlon[1];
-		console.log(lat+'&'+lon);
+		ilat=latlon[0];
+		ilon=latlon[1];
+		console.log("IP location: "+ilat+'&'+ilon);
 		});
-	*/
+	// https://api.db-ip.com/v2/p6bcac47ae71f0285cb6343d9697e56e41a2cb92/self
+	/*
+	$.get("https://api.db-ip.com/v2/p6bcac47ae71f0285cb6343d9697e56e41a2cb92/self", function(result){
+		var ip = result.ipAddress;
+		var province = result.stateProv;
+		var district = result.district;
+		var city = result.city;
+		var place = result.asName;
+		ilon = result.longitude;
+		ilat = result.latitude;
+		consule.log("IP info: "+ip+","+province+","+city+","+place);
+	});*/
+	
+	function ElevationCoder(lon, lat){
+		var elev_;
+		$.get("https://api.open-elevation.com/api/v1/lookup?locations="+lat+","+lon, function(response){
+			elev_=response.results[0].elevation;
+			console.log("Elevation: "+elev_);
+			$('#pendding-alt-number').html(elev_+' m');
+		});		
+		return elev_;
+	}
+	/*https://wiki.openstreetmap.org/wiki/Nominatim#Reverse_Geocoding*/
+	function PlaceCoder(lon, lat){
+		var place;
+		//var pcurl="https://www.mapquestapi.com/geocoding/v1/reverse?key=lYrP4vF3Uk5zgTiGGuEzQGwGIVDGuy24&location="+lat+"%2C-"+lon+"&outFormat=json&thumbMaps=false";
+		var pcurl = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat="+lat+"&lon="+lon;
+		jQuery.ajax({ 
+		type: "GET", 
+		url: pcurl, 
+		success: function(data){
+			place = data.display_name.split(/,/).join('<br>');
+			console.log("OSM-Place: "+place);
+			$('#google-maps-popup-info-title').html('<b>'+place+'</b>');
+			/*
+			var addr = data.address;
+			place = addr.road+"\n"
+					+addr.state+addr.state_district+"\n"
+					+addr.county+" "+addr.postcode;
+			console.log("Place: "+place);
+			*/
+		}, 
+		dataType: "json"});
+		return place;
+	}
+
+
 	function init(maptype){
 		document.getElementById('searchBoxContainer').innerHTML=searchboxcontainer;
 		document.getElementById('map').innerHTML="";
 		if(maptype=='amap'){
-			amap(lon,lat);
+			amap(ilon,ilat);
 		}else if(maptype=='bdmap'){
-			bdmap(lon,lat);
+			bdmap(ilon,ilat);
 		}else if(maptype=='gmap'){
-			gmap(lon,lat);
+			gmap(ilon,ilat);
 		}else if(maptype=='bmap'){
-	        bmap(lon,lat);
+	        bmap(ilon,ilat);
 	    }
 		return;
 	}
@@ -225,13 +301,13 @@
 	  	resizeEnable: true,
 	  	rotateEnable:true,
 	    pitchEnable:true,
-	    zoom: 17,
-	    buildingAnimation:true,//楼块出现是否带动画
+	    zoom: zoomlevel,
+	    buildingAnimation:true,
 	    expandZoomRange:true,
 	    zooms:[3,20],
 	  	center: [lon,lat]
 	  	}); 
-		//控制条
+		//control bar add
 		map.plugin(["AMap.ControlBar"],function(){
 	    var controlBar = new AMap.ControlBar({
 	    position: {top:'4px',right:'4px'},
@@ -240,22 +316,22 @@
 	    });
 	    map.addControl(controlBar);
 		});
-	     //比例尺
+	     //scale add
 	     map.plugin(["AMap.Scale"], function() {
 	        map.addControl(new AMap.Scale());
 	     });     
-	     //预览视图
+	     //overview add
 	    map.plugin(["AMap.OverView"], function() {
 	        map.addControl(new AMap.OverView());
 	     });
-	    //为地图注册click事件获取鼠标点击出的经纬度坐标
+	    //click event register
 	    var clickEventListener = map.on('click', function(e) {
 	        //document.getElementById("lnglat").value = e.lnglat.getLng() + ',' + e.lnglat.getLat()
 	        //alert(e.lnglat);
 	        info.setContent(createContent(e.lnglat));
 	        info.open(map,e.lnglat);
 	    });
-	     //label语言栏
+	     //set the map language
 		map.setLang('zh_en');
 	    // search box event
 	    autoprediction = new AMap.Autocomplete({
@@ -265,7 +341,7 @@
 	    	if(e.keyCode == 13){
 			    AMap.service(["AMap.PlaceSearch"], function() {
 			        var placeSearch = new AMap.PlaceSearch({ });
-			        //关键字查询]
+			        //keyword search
 			        var keyword = document.getElementById('searchBox_amap').value;
 			        placeSearch.search(keyword, function(status, result){
 			        	if(status==='complete' && result.info=='OK'){
@@ -276,7 +352,7 @@
 			    });
 	    	}
 	    });
-	    AMap.event.addListener(autoprediction, "select", select);//注册监听，当选中某条记录时会触发
+	    AMap.event.addListener(autoprediction, "select", select);//selection event register
 	    function select(e) {
 	        if (e.poi && e.poi.location) {
 	            map.setZoom(15);
@@ -295,7 +371,7 @@
 			    
 	        }
 	    } 
-	    var placeSearch = new AMap.PlaceSearch();  //构造地点查询类
+	    var placeSearch = new AMap.PlaceSearch();  //place searching event build
 	    map.on('hotspotclick', function(result) {
 	        placeSearch.getDetails(result.id, function(status, result) {
 	            if (status === 'complete' && result.info === 'OK') {
@@ -303,15 +379,16 @@
 	            }
 	        });
 	    });
-	    //回调函数
+	    //searching callback function
 	    function placeSearch_CallBack(data) { //infoWindow.open(map, result.lnglat);
 	        var poiArr = data.poiList.pois;
 	        var location = poiArr[0].location;
 	        map.setCenter(location);
 	        info.setContent(createContent(poiArr[0], 1));
 	        info.open(map,location);
+          	
 	    }
-	    function createContent(poi, full) {  //信息窗体内容
+	    function createContent(poi, full) {  //set the info window content
 	        var s = [];
 	        if(full == 1){
 			    s.push('<div class="info-title">'+poi.name+'</div><div class="info-content">'+"地址：" + poi.address);
@@ -319,40 +396,46 @@
 			    s.push("类型：" + poi.type);
 			    s.push("经度：" + poi.location.lng);
 			    s.push("纬度：" + poi.location.lat);
+              	ilon = poi.location.lng;
+              	ilat = poi.location.lat;
 	        }else{
 			    s.push('<div class="info-title">Unname Place'+'</div><div class="info-content">'+"地址：");
 			    s.push("电话：" );
 			    s.push("类型：" );
 			    s.push("经度：" + poi.getLng());
 			    s.push("纬度：" + poi.getLat());
+              	ilon = poi.getLng();
+              	ilat = poi.getLat();
 	        }
 	        s.push('<div>');
 	        return s.join("<br>");
 	    }
 	    /*-*/
-		//网络定位按钮
+		//positioning button add
 		var locbox='<div id="locbox" class="zdeps-1 usel"> <div class="icon locicon"> <svg class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="5112" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200" data-spm-anchor-id="0.0.0.i0.6b8e1c4eJ3hzYw"><defs><style type="text/css"></style></defs><path d="M639.297829 382.7712c-17.2032-17.173943-37.829486-30.954057-60.328229-40.257829-22.498743-9.303771-46.811429-14.1312-71.153371-14.1312-24.341943 0-48.683886 4.827429-71.153371 14.1312-22.498743 9.303771-43.125029 23.054629-60.328229 40.257829-17.2032 17.173943-30.983314 37.800229-40.316343 60.240457-9.303771 22.469486-14.160457 46.752914-14.160457 71.0656 0 24.312686 4.827429 48.596114 14.160457 71.0656 9.303771 22.469486 23.083886 43.066514 40.316343 60.240457 17.2032 17.173943 37.829486 30.954057 60.328229 40.257829 22.469486 9.303771 46.811429 14.1312 71.153371 14.1312 24.341943 0 48.654629-4.827429 71.153371-14.1312 22.469486-9.303771 43.125029-23.054629 60.328229-40.257829 17.2032-17.173943 30.983314-37.770971 40.287086-60.240457 9.303771-22.440229 14.160457-46.752914 14.160457-71.0656 0-24.312686-4.856686-48.596114-14.160457-71.0656C670.3104 420.571429 656.530286 399.9744 639.297829 382.7712zM918.557257 467.529143c-16.647314-199.533714-162.962286-348.3648-362.788571-362.203429L555.768686 0l-85.4016 0 0 106.7008C276.128914 124.693943 122.090057 272.149943 105.442743 467.529143L0 467.529143l0 87.127771 105.442743 0c16.647314 195.3792 168.842971 343.2448 363.081143 362.642286L468.523886 1024l87.215543 0 0-105.325714c199.797029-13.867886 346.141257-164.512914 362.788571-364.046629L1024 554.627657 1024 467.529143 918.557257 467.529143zM512 847.082057c-184.5248 0-334.848-151.464229-334.848-334.379886 0-182.915657 151.698286-336.223086 334.848-336.223086 184.554057 0 334.848 153.307429 334.848 336.223086C846.848 695.588571 696.5248 847.082057 512 847.082057z" p-id="5113"></path></svg> </div> </div>';
 	    map.plugin('AMap.Geolocation', function() {
 	        geolocation = new AMap.Geolocation({
-	            enableHighAccuracy: true,//是否使用高精度定位，默认:true
-	            timeout: 10000,          //超过10秒后停止定位，默认：无穷大
-	            buttonOffset: new AMap.Pixel(36, 34),//定位按钮与设置的停靠位置的偏移量，默认：Pixel(10, 20)
-	            zoomToAccuracy: true,      //定位成功后调整地图视野范围使定位位置及精度范围视野内可见，默认：false
+	            enableHighAccuracy: true,
+	            timeout: 10000,
+	            buttonOffset: new AMap.Pixel(36, 34),
+	            zoomToAccuracy: true,
 	            buttonDom: locbox,
 	            buttonPosition:'RB'
 	        });
 	        map.addControl(geolocation);
-	        AMap.event.addListener(geolocation, 'complete', onComplete);//返回定位信息
-	        AMap.event.addListener(geolocation, 'error', onError);      //返回定位出错信息
+	        AMap.event.addListener(geolocation, 'complete', onComplete);
+	        AMap.event.addListener(geolocation, 'error', onError);
 	        //geolocation.getCurrentPosition();
 	    });
 	    function onComplete(data) {
 	        var str=['定位成功'];
 	        str.push('经度：' + data.position.getLng());
 	        str.push('纬度：' + data.position.getLat());
-	        if(data.accuracy){
+            ilon = poi.getLng();
+            ilat = poi.getLat();
+          	if(data.accuracy){
 	             str.push('精度：' + data.accuracy + ' 米');
-	        }//如为IP精确定位结果则没有精度信息
+	        }
 	        str.push('是否经过偏移：' + (data.isConverted ? '是' : '否'));
 	        //document.getElementById('iposition').innerHTML = str.join('<br>');
 	        getLocWeather();
@@ -360,22 +443,20 @@
 	    //解析定位错误信息
 	    function onError(data) {
 	        //document.getElementById('iposition').innerHTML = '定位失败';
+          	alert('定位失败!\nPositioning fail!');
 	    }
 	    function getLocWeather(){
-	    //实例化城市查询类
 	    var citysearch = new AMap.CitySearch();
-	    //自动获取用户IP，返回当前城市
 	    citysearch.getLocalCity(function(status, result) {
 	        if (status === 'complete' && result.info === 'OK') {
 	            if (result && result.city && result.bounds) {
 	                var cityinfo = result.city;
 	                var citybounds = result.bounds;
 	                //document.getElementById('tip').innerHTML = '您当前所在城市：'+cityinfo;
-	                //地图显示当前城市
 	                map.setBounds(citybounds);
 	                AMap.service('AMap.Weather', function () {
 			        var weather = new AMap.Weather();
-			        //查询实时天气信息, 查询的城市到行政级别的城市，如朝阳区、杭州市
+			        //get the city weather, like Hangzhou, Shanghai,Beijing, ect.
 					//var cityinfo ='徐州';
 					/*
 			        weather.getLive(cityinfo, function(err, data) {
@@ -398,7 +479,7 @@
 			            }
 			        });
 			        */
-			        //未来4天天气预报
+			        //get the weather forecast over 4 days
 			        info_.setContent('<div style="color: #3366FF;">未来天气' + '</div>'+'<div id="iweather">...<div>');
 			        weather.getForecast(cityinfo, function(err, data) {
 			            if (err) {return;}
@@ -441,14 +522,14 @@
 		box.id='searchBox_bdmap';
 		
 		map = new BMap.Map("map", {enableMapClick:true});
-		map.centerAndZoom(new BMap.Point(lon, lat), 11);
+		map.centerAndZoom(new BMap.Point(lon, lat), zoomlevel);
 		map.addControl(new BMap.NavigationControl({
 			type:BMAP_NAVIGATION_CONTROL_ZOOM,
 			anchor:BMAP_ANCHOR_BOTTOM_RIGHT,
 			offset:new BMap.Size(6, 50)
-			}));               										  // 添加平移缩放控件
-		map.addControl(new BMap.ScaleControl());                    // 添加比例尺控件
-		map.addControl(new BMap.OverviewMapControl());              //添加缩略地图控件
+			})); 
+		map.addControl(new BMap.ScaleControl()); 
+		map.addControl(new BMap.OverviewMapControl());
 		map.addControl(new BMap.MapTypeControl({
 			anchor:BMAP_ANCHOR_BOTTOM_LEFT,
 			offset:new BMap.Size(6, 60)
@@ -462,21 +543,21 @@
 		}));
 		*/
 		map.setMapStyle({style:'google'});
-		map.enableScrollWheelZoom();                            //启用滚轮放大缩小
+		map.enableScrollWheelZoom(); 
 		autoprediction = new BMap.Autocomplete( 
 			{"input" : "searchBox_bdmap",
 			"location" : map
 		});
 		var opts = {
-		  width : 300,     // 信息窗口宽度
-		  height: 100,     // 信息窗口高度
-		  title : "" , // 信息窗口标题
-			panel  : "panel",         //检索结果面板
-			enableAutoPan : true,     //自动平移
+		  width : 300,
+		  height: 100,
+		  title : "" ,
+			panel  : "panel",
+			enableAutoPan : true,
 			searchTypes   :[
-				BMAPLIB_TAB_SEARCH,   //周边检索
-				BMAPLIB_TAB_TO_HERE,  //到这里去
-				BMAPLIB_TAB_FROM_HERE //从这里出发
+				BMAPLIB_TAB_SEARCH,
+				BMAPLIB_TAB_TO_HERE,
+				BMAPLIB_TAB_FROM_HERE
 			]
 		};
 		/*
@@ -507,28 +588,31 @@
 			}
 	    })
 		var myValue;
-		autoprediction.addEventListener("onconfirm", function(e) {    //鼠标点击下拉列表后的事件
+		autoprediction.addEventListener("onconfirm", function(e) {
 		var _value = e.item.value;
 			myValue = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
 			setPlace();
 		});
 		function setPlace(){
-			map.clearOverlays();    //清除地图上所有覆盖物
+			map.clearOverlays();
 			function myFun(){
-				var poi = local.getResults().getPoi(0);    //获取第一个智能搜索的结果
+				var poi = local.getResults().getPoi(0);
 				map.centerAndZoom(poi.point, 18);
-				map.addOverlay(new BMap.Marker(poi.point));    //添加标注
+				map.addOverlay(new BMap.Marker(poi.point));
 				opts.title="<b>"+poi.title+"</b>";
 				var info = [];
 				info.push("地址："+poi.address);
 				info.push("城市："+poi.city);
 				info.push("电话："+poi.phoneNumber+"，邮编："+poi.postcode);
 				info.push("经纬度：" + poi.point.lng+"，"+poi.point.lat);
-				var searchinfoWindow = new BMapLib.SearchInfoWindow(map, info.join('<br>'), opts);  // 创建信息窗口对象 
+				var searchinfoWindow = new BMapLib.SearchInfoWindow(map, info.join('<br>'), opts);
 				searchinfoWindow.open(poi.point);
+              
+              	ilon = poi.point.lng;
+              	ilat = poi.point.lat;
 				
 			}
-			var local = new BMap.LocalSearch(map, { //智能搜索
+			var local = new BMap.LocalSearch(map, {
 			  onSearchComplete: myFun
 			});
 			local.search(myValue);
@@ -539,12 +623,20 @@
 	function gmap(lon,lat){
 		var box = document.getElementById(searchbox_id);
 		box.id='searchBox_gmap';
+      
+		var head = document.getElementsByTagName('head')[0];
+		var origAppend = head.appendChild;
+		head.appendChild = function(s)
+		{
+			if (s && s.src && s.src.toString().match(/maps\.googleapis\.com/)) s.src = s.src.replace('maps.googleapis.com','ditu.google.cn');
+			origAppend.call(head,s);
+		};
 		
 	    // to the map type control.
 	    var latlng = new google.maps.LatLng
         map = new google.maps.Map(document.getElementById('map'), {
           //center: {lat: lat, lng: lon},//xuzhou: lat: 34.2143928498, lng: 117.1465301514/lat: -33.8688, lng: 151.2195
-          zoom: 13,
+          zoom: zoomlevel,
           zoomControl: true,
           scaleControl: true,
           mapTypeId: 'terrain',
@@ -558,11 +650,9 @@
         }); 
         var latlng = new google.maps.LatLng(lat,lon);
         map.setCenter(latlng);
-		var geocoder = new google.maps.Geocoder({});
-		var elevator = new google.maps.ElevationService();
 		google.maps.event.addListener(map, 'click', function(evt)
 		{
-			showInfo(evt.latLng, geocoder, elevator, infoWindow);
+			showInfo(evt.latLng, infoWindow);
 		});
 	    // bing map search box
 	    bingmap = new Microsoft.Maps.Map('#bingmap', {});
@@ -578,28 +668,7 @@
         });
 		// addon one
 		sLatlng=new google.maps.LatLng(39.915266614934566,116.3976383209224/*-33.8688,151.2195*/);
-        infoWindow = new google.maps.InfoWindow({map: map});
-        // Try HTML5 geolocation.
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(function(position) {
-          	lat = position.coords.latitude;
-          	lon = position.coords.longitude;
-            var pos = {
-              lat: lat,
-              lng: lon
-            };
-			sLatlng=new google.maps.LatLng(pos.lat, pos.lng);
-            infoWindow.setPosition(pos);           
-            infoWindow.setContent('Location found.<br>You may be here.</br>Lat: '+pos.lat+"<br>Lng: "+pos.lng);
-            map.setCenter(pos);
-          }, function() {
-            handleLocationError(true, infoWindow, map.getCenter());
-          });
-        } else {
-          // Browser doesn't support Geolocation
-          handleLocationError(false, infoWindow, map.getCenter());
-        }
-        
+        infoWindow = new google.maps.InfoWindow({map: map}); 
         // click event
         smarker = new google.maps.Marker({
           position: sLatlng,
@@ -611,13 +680,7 @@
           map.setCenter(smarker.getPosition());
         });
 		//smarker.push(marker);
-      	//***************************************************
-      	function handleLocationError(browserHasGeolocation, infoWindow, pos) {
-        	infoWindow.setPosition(pos);
-        	infoWindow.setContent(browserHasGeolocation ?
-                              'Error: The Geolocation service failed.' :
-                              'Error: Your browser doesn\'t support geolocation.');
-      	}
+
 	    //***************************************************
     	function pinResult(latlng){
     		if(smarker !=null){
@@ -627,9 +690,14 @@
         map.setCenter(latlng);
         smarker = new google.maps.Marker({ 
 				position: latlng,//latlng,
-				map: map
+				map: map,
+				title: 'Click to see more detail'
 				});
-				//showInfo(latlng);
+		 smarker.addListener('click', function(){
+		 	showInfo(latlng, infoWindow);
+		 });
+         ilon = latlng.longitude;
+         ilat = latlng.latitude;
     	}
     	function suggestionSelected(result) {		
         	slatlng=new google.maps.LatLng(result.location.latitude, result.location.longitude);
@@ -655,7 +723,9 @@
         //Make the geocode request.
         searchManager.geocode(searchRequest);
     	}
-		function showInfo(myPt, geocoder, elevator, infowindow){
+		function showInfo(myPt, infowindow){
+			
+          	var geocoder = new google.maps.Geocoder();		
 			geocoder.geocode({'latLng': myPt}, function(results, status)
 			{
 				if (status == google.maps.GeocoderStatus.OK)
@@ -669,18 +739,27 @@
 					}
 				}
 			});
+			
+			
 			infowindow.open(map);
 			infowindow.setPosition(myPt);
 			infowindow.setContent('<div class="info-pop-title" id="google-maps-popup-info-title">'+'</div><div class="nowrap">lng: '+myPt.lng()+'°</div><div class="nowrap">lat: '+myPt.lat()+'°</div><div class="nowrap">alt: <span id="pendding-alt-number">...</span></div>');
-			elevator.getElevationForLocations({locations:[myPt]},function(data)
+			
+			var elevator = new google.maps.ElevationService();
+          	elevator.getElevationForLocations({locations:[myPt]},function(data)
 			{
 				if (data && data[0])
 				{
 					//var alt = Math.round(data[0].elevation);
 					var alt = data[0].elevation;
 					$('#pendding-alt-number').html(alt+' m');
+                  	iele = alt;
 				}
 			});
+			
+			//var alt = ElevationCoder(myPt.lng(), myPt.lat());
+			//PlaceCoder(myPt.lng(), myPt.lat())
+          	iele = alt;
 		}
 		return;
 	}
@@ -691,6 +770,7 @@
 		
 		map = new Microsoft.Maps.Map(document.getElementById('map'), {
 	    /* No need to set credentials if already passed in URL */
+	    zoom: zoomlevel,
 	    center: new Microsoft.Maps.Location(lat, lon),
 	    mapTypeId: Microsoft.Maps.MapTypeId.canvasLight,
     	supportedMapTypes: [Microsoft.Maps.MapTypeId.road, Microsoft.Maps.MapTypeId.aerial, Microsoft.Maps.MapTypeId.canvasLight],
@@ -723,14 +803,12 @@
         Microsoft.Maps.Events.addHandler(map, 'click', displayInfo); 
 	    // poi get func
 	    function displayInfo(e){
-	        //若点击到地图的标记上，而非地图上
 	        var loc;
 	        var code;
 	        if (e.targetType == "pushpin") {
 	            loc = e.target.getLocation();
 	            code="pushpin";
 	        }
-	        //若点击到地图上
 	        else {
 	            var point = new Microsoft.Maps.Point(e.pageX, e.pageY);
 	            loc = e.target.tryPixelToLocation(point, Microsoft.Maps.PixelReference.page);
@@ -742,6 +820,8 @@
 	    function showInfoBox(location, title) {
 	    	var des = 'Lat: '+location.latitude+"<br>Lon: "+location.longitude;
 			infobox.setOptions({ title: title, description: des, location:location, visible: true });
+          	ilon = location.longitude;
+          	ilat = location.latitude;
 		}
 	    function suggestionSelected(result) {
 	        //Remove previously results from the map.
